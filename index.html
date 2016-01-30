@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script src="citestate.js"></script>
+    <title>Cite Game State</title>
+</head>
+<body>
+<div id="target">Emulator goes here</div>
+<div id="target2">Emulator goes here</div>
+</body>
+<script>
+    CiteState.cite("target", function(emu) {window.emu = emu;}, "area88.smc");
+    CiteState.cite("target2", function(emu) {window.emu2 = emu;}, "area88.smc");
+</script>
+</html>
