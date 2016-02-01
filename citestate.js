@@ -24,7 +24,7 @@
     function determineSystem(gameFile) {
         if (gameFile.match(/\.(smc|sfc)$/i)) {
             return SNES;
-        } else if (gameFile.match(/\.exe$/i)) {
+        } else if (gameFile.match(/\.(exe|com|bat|dos|iso)$/i)) {
             return DOS;
         } else if (gameFile.match(/\.(nes|fds)$/i)) {
             return NES;
@@ -60,6 +60,8 @@
                 var canvas = document.createElement("canvas");
                 canvas.width = targetElement.clientWidth;
                 canvas.height = targetElement.clientHeight;
+                canvas.style.setProperty("width", canvas.width);
+                canvas.style.setProperty("height", canvas.height);
                 targetElement.appendChild(canvas);
 
                 // As a default initial behavior, pop up an alert when webgl context is lost. To make your
