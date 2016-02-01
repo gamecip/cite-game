@@ -26,7 +26,7 @@
             return SNES;
         } else if (gameFile.match(/\.exe$/i)) {
             return DOS;
-        } else if (gameFile.match(/\.nes$/i)) {
+        } else if (gameFile.match(/\.(nes|fds)$/i)) {
             return NES;
         }
         throw new Error("Unrecognized System");
@@ -41,10 +41,7 @@
         //todo: and be sure that gameFile, freezeFile, and extraFiles are used appropriately.
         var moduleObject = {
             locateFile: function(url) {
-                if(url == emulator+".js.mem") {
-                    return "/emulators/"+emulator+".js.mem";
-                }
-                return url;
+                return "/emulators/"+url;
             },
             targetID:targetID,
             system:system,
@@ -61,6 +58,8 @@
                 var targetElement = document.getElementById(targetID);
                 targetElement.innerHTML = "";
                 var canvas = document.createElement("canvas");
+                canvas.width = targetElement.clientWidth;
+                canvas.height = targetElement.clientHeight;
                 targetElement.appendChild(canvas);
 
                 // As a default initial behavior, pop up an alert when webgl context is lost. To make your
