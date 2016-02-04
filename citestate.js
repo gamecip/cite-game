@@ -39,11 +39,36 @@
         }
         //todo: compile everybody with -s modularize and export name to FCEUX, SNES9X, DOSBOX.
         //todo: and be sure that gameFile, freezeFile, and extraFiles are used appropriately.
+        var targetElement = document.getElementById(targetID);
+        targetElement.innerHTML = "";
+        targetElement.tabIndex = 0;
+        targetElement.addEventListener("click", function() {
+            targetElement.focus();
+        });
+        var canvas = (function() {
+            var canvas = document.createElement("canvas");
+            canvas.width = targetElement.clientWidth;
+            canvas.height = targetElement.clientHeight;
+            canvas.style.setProperty( "width", "inherit", "important");
+            canvas.style.setProperty("height", "inherit", "important");
+            targetElement.appendChild(canvas);
+
+            // As a default initial behavior, pop up an alert when webgl context is lost. To make your
+            // application robust, you may want to override this behavior before shipping!
+            // See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
+            canvas.addEventListener("webglcontextlost", function(e) {
+                alert('WebGL context lost. You will need to destroy and recreate this widget.');
+                e.preventDefault();
+            }, false);
+            return canvas;
+        })();
+        var instance;
         var moduleObject = {
             locateFile: function(url) {
                 return "/emulators/"+url;
             },
             targetID:targetID,
+            keyboardListeningElement:targetElement,
             system:system,
             emulator:emulator,
             gameFile:gameFile,
@@ -53,29 +78,9 @@
             postRun: [],
             print: console.log,
             printErr: console.error,
-
-            canvas: (function() {
-                var targetElement = document.getElementById(targetID);
-                targetElement.innerHTML = "";
-                var canvas = document.createElement("canvas");
-                canvas.width = targetElement.clientWidth;
-                canvas.height = targetElement.clientHeight;
-                canvas.style.setProperty("width", canvas.width);
-                canvas.style.setProperty("height", canvas.height);
-                targetElement.appendChild(canvas);
-
-                // As a default initial behavior, pop up an alert when webgl context is lost. To make your
-                // application robust, you may want to override this behavior before shipping!
-                // See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
-                canvas.addEventListener("webglcontextlost", function(e) {
-                    alert('WebGL context lost. You will need to destroy and recreate this widget.');
-                    e.preventDefault();
-                }, false);
-
-                return canvas;
-            })()
+            canvas: canvas
         };
-        var instance = emuModule(moduleObject);
+        instance = emuModule(moduleObject);
         EmulatorInstances[emulator].push(instance);
         if(onLoad) {
             onLoad(instance);
