@@ -65,7 +65,7 @@
         var instance;
         var moduleObject = {
             locateFile: function(url) {
-                return "/emulators/"+url;
+                return "emulators/"+url;
             },
             targetID:targetID,
             keyboardListeningElement:targetElement,
