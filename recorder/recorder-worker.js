@@ -41,11 +41,11 @@ Recorder.spawnRecorder = function() {
     }
 };
 
-Recorder.startRecording = function(w,h,fps,cb) {
+Recorder.startRecording = function(w,h,fps,sps,cb) {
     if(!Recorder.worker || !Recorder.ready) {
         Recorder.spawnRecorder();
         Recorder.pendingCalls.push(function() {
-            Recorder.startRecording(w,h,fps,cb);
+            Recorder.startRecording(w,h,fps,sps,cb);
         });
         return;
     }
@@ -56,6 +56,7 @@ Recorder.startRecording = function(w,h,fps,cb) {
         width:w,
         height:h,
         fps:fps,
+        sps:sps,
         nonce:nonce
     });
 }
@@ -73,6 +74,22 @@ Recorder.addVideoFrame = function(recordingID, frame, imageData) {
     if(Recorder.dataBatch.length >= Recorder.dataBatchThreshold) {
         Recorder.flushDataBatches();
     }
+}
+
+//Note: frame must be in the samplerate timebase, i.e. number of samples since start.
+Recorder.addAudioFrame = function(recordingID, frame, audioData) {
+    if(!Recorder.worker || !Recorder.ready) {
+        console.error("Calling addAudioFrame too early");
+    }
+    //don't really batch audio frames
+    Recorder.worker.postMessage({
+        type:"data",
+        messages:[{
+            recordingID:recordingID,
+            frame:frame,
+            audioBuffer:audioData.buffer
+        }]
+    }, [audioData.buffer]);
 }
 
 Recorder.flushDataBatches = function() {

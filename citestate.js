@@ -1,5 +1,7 @@
 (function () {
-    window.CiteState = {};
+    window.CiteState = {
+        scriptRoot:""
+    };
 
     var NES = "NES";
     var SNES = "SNES";
@@ -65,7 +67,7 @@
         var instance;
         var moduleObject = {
             locateFile: function(url) {
-                return "emulators/"+url;
+                return scriptRoot+"emulators/"+url;
             },
             targetID:targetID,
             keyboardListeningElement:targetElement,
@@ -83,18 +85,73 @@
         };
         instance = emuModule(moduleObject);
         instance.postRun.push(function() {
+            instance.setMuted("mute" in options ? options.mute : true);
             if(onLoad) { onLoad(instance); }
             if(options && ("recorder" in options)) {
-                Recorder.recorderRoot = "recorder/";
+                Recorder.recorderRoot = scriptRoot+"recorder/";
+                if(!instance.getAudioCaptureInfo) {
+                    throw "Can't record unless audio recording contexts are given by the emulator";
+                }
                 instance.startRecording = function(cb) {
                     if(instance.recording) {
                         console.error("Can't record two videos at once for one emulator");
                         return;
                     }
                     instance.recording = true;
-                    Recorder.startRecording(instance.canvas.width, instance.canvas.height, window.CiteState.canvasCaptureFPS, function(rid) {
+                    instance.audioInfo = instance.getAudioCaptureInfo();
+                    var sampleRate = instance.audioInfo.context.sampleRate;
+                    var bufferSize = 16384;
+                    instance.audioCaptureNode = instance.audioInfo.context.createScriptProcessor(bufferSize,2,2);
+                    instance.audioCaptureBuffer = new Float32Array(sampleRate*2);
+                    instance.audioCaptureStartSample = 0;
+                    instance.audioCaptureOffset = 0;
+                    instance.audioCaptureNode.onaudioprocess = function(e) {
+                        var input = e.inputBuffer;
+                        var output = e.outputBuffer;
+                        var in0 = input.getChannelData(0);
+                        var in1 = input.getChannelData(1);
+                        var out0 = output.getChannelData(0);
+                        var out1 = output.getChannelData(1);
+                        var capture = instance.audioCaptureBuffer;
+                        var captureOffset = instance.audioCaptureOffset;
+                        if(instance.recording) {
+                            for(var i = 0; i < bufferSize; i++) {
+                                out0[i] = in0[i];
+                                out1[i] = in1[i];
+                                capture[captureOffset] = in0[i];
+                                capture[captureOffset+1] = in1[i];
+                                captureOffset+=2;
+                                if(captureOffset >= capture.length) {
+                                    Recorder.addAudioFrame(instance.recordingID, instance.audioCaptureStartSample, capture);
+                                    instance.audioCaptureStartSample += sampleRate;
+                                    capture = new Float32Array(sampleRate*2);
+                                    instance.audioCaptureBuffer = capture;
+                                    captureOffset = 0;
+                                }
+                            }
+                            instance.audioCaptureOffset = captureOffset;
+                        } else {
+                            for(var i = 0; i < bufferSize; i++) {
+                                out0[i] = in0[i];
+                                out1[i] = in1[i];
+                            }
+                        }
+                    }
+                    Recorder.startRecording(instance.canvas.width, instance.canvas.height, window.CiteState.canvasCaptureFPS, sampleRate, function(rid) {
+                        console.log("Aud:",instance.audioInfo);
+                        var audioCtx = instance.audioInfo.context;
+                        var sampleRate = audioCtx.sampleRate;
+                        var dest = audioCtx.destination;
+                        var src = instance.audioInfo.capturedNode;
+                        var captureNode = instance.audioCaptureNode;
+                        
                         instance.recordingID = rid;
                         instance.recordingStartFrame = window.CiteState.canvasCaptureCurrentFrame();
+                        //hook up audio capture
+                        src.disconnect(dest);
+                        src.connect(captureNode);
+                        captureNode.connect(dest);
+                        //hook up video capture
                         instance.captureContext = instance.canvas.getContext("2d");
                         window.CiteState.canvasCaptureOne(instance, 0);
                         window.CiteState.liveRecordings.push(instance);
@@ -174,7 +231,7 @@
         var system = determineSystem(gameFile);
         var emulator = EmulatorNames[system];
         if (!(emulator in LoadedEmulators)) {
-            var script = "emulators/" + emulator + ".js";
+            var script = scriptRoot+"emulators/" + emulator + ".js";
             //load the script on the page
             var scriptElement = document.createElement("script");
             scriptElement.src = script;
