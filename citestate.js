@@ -67,7 +67,7 @@
         var instance;
         var moduleObject = {
             locateFile: function(url) {
-                return scriptRoot+"emulators/"+url;
+                return window.CiteState.scriptRoot+"emulators/"+url;
             },
             targetID:targetID,
             keyboardListeningElement:targetElement,
@@ -88,7 +88,7 @@
             instance.setMuted("mute" in options ? options.mute : true);
             if(onLoad) { onLoad(instance); }
             if(options && ("recorder" in options)) {
-                Recorder.recorderRoot = scriptRoot+"recorder/";
+                Recorder.recorderRoot = window.CiteState.scriptRoot+"recorder/";
                 if(!instance.getAudioCaptureInfo) {
                     throw "Can't record unless audio recording contexts are given by the emulator";
                 }
@@ -231,7 +231,7 @@
         var system = determineSystem(gameFile);
         var emulator = EmulatorNames[system];
         if (!(emulator in LoadedEmulators)) {
-            var script = scriptRoot+"emulators/" + emulator + ".js";
+            var script = window.CiteState.scriptRoot+"emulators/" + emulator + ".js";
             //load the script on the page
             var scriptElement = document.createElement("script");
             scriptElement.src = script;
