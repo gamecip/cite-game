@@ -100,6 +100,7 @@
                     instance.recording = true;
                     instance.audioInfo = instance.getAudioCaptureInfo();
                     var sampleRate = instance.audioInfo.context.sampleRate;
+                    instance.audioSampleRate = sampleRate;
                     var bufferSize = 16384;
                     instance.audioCaptureNode = instance.audioInfo.context.createScriptProcessor(bufferSize,2,2);
                     instance.audioCaptureBuffer = new Float32Array(sampleRate*2);
@@ -114,6 +115,8 @@
                         var out1 = output.getChannelData(1);
                         var capture = instance.audioCaptureBuffer;
                         var captureOffset = instance.audioCaptureOffset;
+                        var sampleRate = instance.audioSampleRate;
+                        //todo: is this all right? the buffers seem to be getting too big when the worker thread finally gets them...
                         if(instance.recording) {
                             for(var i = 0; i < bufferSize; i++) {
                                 out0[i] = in0[i];
@@ -121,7 +124,10 @@
                                 capture[captureOffset] = in0[i];
                                 capture[captureOffset+1] = in1[i];
                                 captureOffset+=2;
-                                if(captureOffset >= capture.length) {
+                                if(captureOffset >= sampleRate*2) {
+                                    if(capture.length > sampleRate*2) {
+                                        console.error("Capture too long!");
+                                    }
                                     Recorder.addAudioFrame(instance.recordingID, instance.audioCaptureStartSample, capture);
                                     instance.audioCaptureStartSample += sampleRate;
                                     capture = new Float32Array(sampleRate*2);
