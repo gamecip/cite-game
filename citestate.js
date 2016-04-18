@@ -142,7 +142,7 @@
                                 out1[i] = in1[i];
                             }
                         }
-                    }
+                    };
                     Recorder.startRecording(instance.canvas.width, instance.canvas.height, window.CiteState.canvasCaptureFPS, sampleRate, function(rid) {
                         console.log("Aud:",instance.audioInfo);
                         var audioCtx = instance.audioInfo.context;
@@ -154,9 +154,15 @@
                         instance.recordingID = rid;
                         instance.recordingStartFrame = window.CiteState.canvasCaptureCurrentFrame();
                         //hook up audio capture
-                        src.disconnect(dest);
-                        src.connect(captureNode);
-                        captureNode.connect(dest);
+                        if(!instance.wasAudioCaptured){
+                            src.disconnect(dest);
+                            src.connect(captureNode);
+                            captureNode.connect(dest);
+                            instance.wasAudioCaptured = true;
+                        } else {
+                            src.connect(captureNode);
+                            captureNode.connect(dest);
+                        }
                         //hook up video capture
                         instance.captureContext = instance.canvas.getContext("2d");
                         window.CiteState.canvasCaptureOne(instance, 0);
@@ -176,6 +182,7 @@
                     window.CiteState.liveRecordings.splice(window.CiteState.liveRecordings.indexOf(instance),1);
                 }
                 instance.recording = false;
+                instance.wasAudioCaptured = false;
                 if(options.recorder.autoStart) {
                     instance.startRecording(null);
                 }
