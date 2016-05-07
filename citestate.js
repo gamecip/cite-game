@@ -174,13 +174,13 @@
                             cb(instance.recordingID);
                         }
                     });
-                }
+                };
                 instance.finishRecording = function(cb) {
                     Recorder.finishRecording(instance.recordingID, cb);
                     instance.recording = false;
                     instance.recordingID = -1;
                     window.CiteState.liveRecordings.splice(window.CiteState.liveRecordings.indexOf(instance),1);
-                }
+                };
                 instance.recording = false;
                 instance.wasAudioCaptured = false;
                 if(options.recorder.autoStart) {
@@ -200,11 +200,11 @@
     window.CiteState.timeToFrame = function(timeInSeconds) {
         //seconds * (frames/second)
         return Math.floor(timeInSeconds * (window.CiteState.canvasCaptureFPS));
-    }
+    };
     window.CiteState.canvasCaptureCurrentFrame = function() {
         //seconds * (frames/second)
         return window.CiteState.timeToFrame(window.CiteState.canvasCaptureLastCapturedTime);
-    }
+    };
     window.CiteState.canvasCaptureOne = function(emu, frame) {
         if(frame <= emu.lastCapturedFrame) {
             console.error("Redundant capture",frame);
@@ -215,7 +215,7 @@
             frame,
             emu.captureContext.getImageData(0, 0, emu.canvas.width, emu.canvas.height).data
         );
-    }
+    };
     window.CiteState.canvasCaptureTimerFn = function(timestamp) {
         //convert to seconds
         timestamp = timestamp / 1000.0;
@@ -237,7 +237,7 @@
             }
         }
         window.CiteState.canvasCaptureTimer = requestAnimationFrame(window.CiteState.canvasCaptureTimerFn);
-    }
+    };
 
     //the loaded emulator instance will implement saveState(cb), saveExtraFiles(cb), and loadState(s,cb)
     window.CiteState.cite = function (targetID, onLoad, gameFile, freezeFile, otherFiles, options) {
