@@ -92,7 +92,7 @@
                 if(!instance.getAudioCaptureInfo) {
                     throw "Can't record unless audio recording contexts are given by the emulator";
                 }
-                instance.startRecording = function(cb) {
+                instance.startRecording = function(cb, options) {
                     if(instance.recording) {
                         console.error("Can't record two videos at once for one emulator");
                         return;
@@ -143,7 +143,15 @@
                             }
                         }
                     };
-                    Recorder.startRecording(instance.canvas.width, instance.canvas.height, window.CiteState.canvasCaptureFPS, sampleRate, function(rid) {
+                    //Recording options, used to lower throughput to video encoding if needed
+                    var width = instance.canvas.width;
+                    var height = instance.canvas.height;
+                    var fps = window.CiteState.canvasCaptureFPS;
+                    var br = 400000;
+                    if('fps' in options && options['fps']) fps = options['fps'];
+                    if('br' in options && options['br']) br = options['br'];
+                    
+                    Recorder.startRecording(width, height, fps, sampleRate, br, function(rid) {
                         console.log("Aud:",instance.audioInfo);
                         var audioCtx = instance.audioInfo.context;
                         var sampleRate = audioCtx.sampleRate;
@@ -210,6 +218,12 @@
             console.error("Redundant capture",frame);
         }
         emu.lastCapturedFrame = frame;
+        // Not needed if using dosbox.conf file, need to clean this up a bit for later, also check on SNES
+        // var imArray = shrinkImageData(
+        //     emu.captureContext.getImageData(0,0, emu.canvas.width, emu.canvas.height).data,
+        //     emu.canvas.width,
+        //     emu.canvas.height
+        // );
         Recorder.addVideoFrame(
             emu.recordingID,
             frame,
@@ -258,5 +272,33 @@
         }
     }
 })();
+
+
+// Function to directly linearly shrink by 4x with a naive grab of each top left pixel value
+// This works because the DOS images are 640x400 scaled from 320x200, so each quad of pixels
+// has an identical value
+function shrinkImageData(pixelArray, w, h){
+    var retArray = new Uint8ClampedArray((w >> 1) * (h >> 1) * 4); // w / 2 and h / 2
+    var w4 = w << 2;
+    // Do this beforehand to avoid check if zero / initial in main loop
+    retArray[0] = pixelArray[0];
+    retArray[1] = pixelArray[1];
+    retArray[2] = pixelArray[2];
+    retArray[3] = pixelArray[3];
+
+    var retInd = 4;
+    for(var i = 8, len = pixelArray.length; i < len; i+=8){ //skip every other pixel
+        //investigate a way to remove this statement
+        if(i % w4 == 0){    //at the beginning of a new row, skip one
+            i += w4;
+        }
+        retArray[retInd] = pixelArray[i];
+        retArray[retInd + 1] = pixelArray[i + 1];
+        retArray[retInd + 2] = pixelArray[i + 2];
+        retArray[retInd + 3] = pixelArray[i + 3];
+        retInd += 4;
+    }
+    return retArray;
+}
 
 
