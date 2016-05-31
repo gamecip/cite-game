@@ -34,13 +34,13 @@
         throw new Error("Unrecognized System");
     }
 
-    function realCite(targetID, onLoad, system, emulator, gameFile, freezeFile, otherFiles, options) {
+    function realCite(targetID, onLoad, system, emulator, gameFile, freezeFile, freezeData, otherFiles, options) {
         var emuModule = LoadedEmulators[emulator];
         if (!emuModule) {
             throw new Error("Emulator Not Loaded");
         }
         //todo: compile everybody with -s modularize and export name to FCEUX, SNES9X, DOSBOX.
-        //todo: and be sure that gameFile, freezeFile, and extraFiles are used appropriately.
+        //todo: and be sure that gameFile, freezeFile, freezeData and extraFiles are used appropriately.
         var targetElement = document.getElementById(targetID);
         targetElement.innerHTML = "";
         targetElement.tabIndex = 0;
@@ -75,6 +75,7 @@
             emulator:emulator,
             gameFile:gameFile,
             freezeFile:freezeFile,
+            freezeData:freezeData,
             extraFiles:otherFiles,
             preRun: [],
             postRun: [],
@@ -84,7 +85,8 @@
             options: options || {}
         };
         instance = emuModule(moduleObject);
-        instance.postRun.push(function() {
+        instance.postRun.unshift(function csPostRun() {
+            console.log("Post Run 2");
             instance.setMuted("mute" in options ? options.mute : true);
             if(onLoad) { onLoad(instance); }
             if(options && ("recorder" in options)) {
@@ -102,7 +104,11 @@
                     var sampleRate = instance.audioInfo.context.sampleRate;
                     instance.audioSampleRate = sampleRate;
                     var bufferSize = 16384;
-                    instance.audioCaptureNode = instance.audioInfo.context.createScriptProcessor(bufferSize,2,2);
+                    //FCEUX uses a mono output
+                    if(emulator === FCEUX)
+                        instance.audioCaptureNode = instance.audioInfo.context.createScriptProcessor(2048, 1, 1);
+                    else
+                        instance.audioCaptureNode = instance.audioInfo.context.createScriptProcessor(bufferSize, 2, 2);
                     instance.audioCaptureBuffer = new Float32Array(sampleRate*2);
                     instance.audioCaptureStartSample = 0;
                     instance.audioCaptureOffset = 0;
@@ -110,9 +116,17 @@
                         var input = e.inputBuffer;
                         var output = e.outputBuffer;
                         var in0 = input.getChannelData(0);
-                        var in1 = input.getChannelData(1);
                         var out0 = output.getChannelData(0);
-                        var out1 = output.getChannelData(1);
+                        var in1, out1;
+                        // todo: change this to not have onaudioprocess care about emulator specifics
+                        // also does double assignment in loop below, so not too nice
+                        if(emulator === FCEUX){
+                            in1 = in0;
+                            out1 = out0;
+                        }else{
+                            in1 = input.getChannelData(1);
+                            out1 = output.getChannelData(1);
+                        }
                         var capture = instance.audioCaptureBuffer;
                         var captureOffset = instance.audioCaptureOffset;
                         var sampleRate = instance.audioSampleRate;
@@ -162,15 +176,15 @@
                         instance.recordingID = rid;
                         instance.recordingStartFrame = window.CiteState.canvasCaptureCurrentFrame();
                         //hook up audio capture
-                        if(!instance.wasAudioCaptured){
+                        try
+                        {
                             src.disconnect(dest);
-                            src.connect(captureNode);
-                            captureNode.connect(dest);
-                            instance.wasAudioCaptured = true;
-                        } else {
-                            src.connect(captureNode);
-                            captureNode.connect(dest);
+                        } catch (e){
+                            //pass since no need to disconnect
                         }
+                        src.connect(captureNode);
+                        captureNode.connect(dest);
+
                         //hook up video capture
                         instance.captureContext = instance.canvas.getContext("2d");
                         window.CiteState.canvasCaptureOne(instance, 0);
@@ -190,7 +204,6 @@
                     window.CiteState.liveRecordings.splice(window.CiteState.liveRecordings.indexOf(instance),1);
                 };
                 instance.recording = false;
-                instance.wasAudioCaptured = false;
                 if(options.recorder.autoStart) {
                     instance.startRecording(null);
                 }
@@ -254,7 +267,7 @@
     };
 
     //the loaded emulator instance will implement saveState(cb), saveExtraFiles(cb), and loadState(s,cb)
-    window.CiteState.cite = function (targetID, onLoad, gameFile, freezeFile, otherFiles, options) {
+    window.CiteState.cite = function (targetID, onLoad, gameFile, freezeFile, freezeData, otherFiles, options) {
         var system = determineSystem(gameFile);
         var emulator = EmulatorNames[system];
         if (!(emulator in LoadedEmulators)) {
@@ -264,11 +277,11 @@
             scriptElement.src = script;
             scriptElement.onload = function () {
                 LoadedEmulators[emulator] = window[emulator];
-                realCite(targetID, onLoad, system, emulator, gameFile, freezeFile, otherFiles, options);
+                realCite(targetID, onLoad, system, emulator, gameFile, freezeFile, freezeData, otherFiles, options);
             };
             document.body.appendChild(scriptElement);
         } else {
-            realCite(targetID, onLoad, system, emulator, gameFile, freezeFile, otherFiles, options);
+            realCite(targetID, onLoad, system, emulator, gameFile, freezeFile, freezeData, otherFiles, options);
         }
     }
 })();
