@@ -266,6 +266,17 @@
         window.CiteState.canvasCaptureTimer = requestAnimationFrame(window.CiteState.canvasCaptureTimerFn);
     };
 
+    window.CiteState.canvasCaptureScreen = function(emu){
+        var context = emu.canvas.getContext("2d");
+        var captureData;
+        if(!context){
+            context = emu.canvas.getContext("webgl");
+        }else{
+            captureData = context.getImageData(0, 0, emu.canvas.width, emu.canvas.height);
+        }
+        return captureData;
+    };
+
     //the loaded emulator instance will implement saveState(cb), saveExtraFiles(cb), and loadState(s,cb)
     window.CiteState.cite = function (targetID, onLoad, gameFile, freezeFile, freezeData, otherFiles, options) {
         var system = determineSystem(gameFile);
