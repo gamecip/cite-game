@@ -35,6 +35,7 @@
     }
 
     function realCite(targetID, onLoad, system, emulator, gameFile, freezeFile, otherFiles, options) {
+        options = options || {};
         var emuModule = LoadedEmulators[emulator];
         if (!emuModule) {
             throw new Error("Emulator Not Loaded");
