@@ -86,7 +86,6 @@
         instance = emuModule(moduleObject);
         instance.postRun.push(function() {
             instance.setMuted("mute" in options ? options.mute : true);
-            if(onLoad) { onLoad(instance); }
             if(options && ("recorder" in options)) {
                 Recorder.recorderRoot = window.CiteState.scriptRoot+"recorder/";
                 if(!instance.getAudioCaptureInfo) {
@@ -180,6 +179,7 @@
                     instance.startRecording(null);
                 }
             }
+            if(onLoad) { onLoad(instance); }
         });
         EmulatorInstances[emulator].push(instance);
         return instance;
