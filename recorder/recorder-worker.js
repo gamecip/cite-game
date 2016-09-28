@@ -41,11 +41,11 @@ Recorder.spawnRecorder = function() {
     }
 };
 
-Recorder.startRecording = function(w,h,fps,sps,cb) {
+Recorder.startRecording = function(w,h,fps,sps,br,cb) {
     if(!Recorder.worker || !Recorder.ready) {
         Recorder.spawnRecorder();
         Recorder.pendingCalls.push(function() {
-            Recorder.startRecording(w,h,fps,sps,cb);
+            Recorder.startRecording(w,h,fps,sps,br,cb);
         });
         return;
     }
@@ -57,9 +57,10 @@ Recorder.startRecording = function(w,h,fps,sps,cb) {
         height:h,
         fps:fps,
         sps:sps,
+        br:br,
         nonce:nonce
     });
-}
+};
 
 Recorder.addVideoFrame = function(recordingID, frame, imageData) {
     if(!Recorder.worker || !Recorder.ready) {
@@ -74,7 +75,7 @@ Recorder.addVideoFrame = function(recordingID, frame, imageData) {
     if(Recorder.dataBatch.length >= Recorder.dataBatchThreshold) {
         Recorder.flushDataBatches();
     }
-}
+};
 
 //Note: frame must be in the samplerate timebase, i.e. number of samples since start.
 Recorder.addAudioFrame = function(recordingID, frame, audioData) {
@@ -90,7 +91,7 @@ Recorder.addAudioFrame = function(recordingID, frame, audioData) {
             audioBuffer:audioData.buffer
         }]
     }, [audioData.buffer]);
-}
+};
 
 Recorder.flushDataBatches = function() {
     if(Recorder.dataBatch.length == 0) { return; }
@@ -100,7 +101,7 @@ Recorder.flushDataBatches = function() {
     }, Recorder.batchedBuffers);
     Recorder.dataBatch = [];
     Recorder.batchedBuffers = [];
-}
+};
 
 Recorder.finishRecording = function(recordingID, cb) {
     if(!Recorder.worker || !Recorder.ready) {
@@ -112,4 +113,4 @@ Recorder.finishRecording = function(recordingID, cb) {
         type:"finish",
         recordingID:recordingID
     });
-}
+};

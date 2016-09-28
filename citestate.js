@@ -6,15 +6,18 @@
     var NES = "NES";
     var SNES = "SNES";
     var DOS = "DOS";
+    var N64 = "N64";
 
     var FCEUX = "FCEUX";
     var SNES9X = "SNES9X";
     var DOSBOX = "DOSBOX";
+    var MUPEN64PLUS = "MUPEN64PLUS";
 
     var EmulatorNames = {};
     EmulatorNames[NES] = FCEUX;
     EmulatorNames[SNES] = SNES9X;
     EmulatorNames[DOS] = DOSBOX;
+    EmulatorNames[N64] = MUPEN64PLUS;
 
     var LoadedEmulators = {};
 
@@ -22,6 +25,7 @@
     EmulatorInstances[FCEUX] = [];
     EmulatorInstances[SNES9X] = [];
     EmulatorInstances[DOSBOX] = [];
+    EmulatorInstances[MUPEN64PLUS] = [];
 
     function determineSystem(gameFile) {
         if (gameFile.match(/\.(smc|sfc)$/i)) {
@@ -30,18 +34,20 @@
             return DOS;
         } else if (gameFile.match(/\.(nes|fds)$/i)) {
             return NES;
+        } else if (gameFile.match(/\.z64$/i)) {
+            return N64
         }
         throw new Error("Unrecognized System");
     }
 
-    function realCite(targetID, onLoad, system, emulator, gameFile, freezeFile, otherFiles, options) {
+    function realCite(targetID, onLoad, system, emulator, gameFile, freezeFile, freezeData, otherFiles, options) {
         options = options || {};
         var emuModule = LoadedEmulators[emulator];
         if (!emuModule) {
             throw new Error("Emulator Not Loaded");
         }
         //todo: compile everybody with -s modularize and export name to FCEUX, SNES9X, DOSBOX.
-        //todo: and be sure that gameFile, freezeFile, and extraFiles are used appropriately.
+        //todo: and be sure that gameFile, freezeFile, freezeData and extraFiles are used appropriately.
         var targetElement = document.getElementById(targetID);
         targetElement.innerHTML = "";
         targetElement.tabIndex = 0;
@@ -63,6 +69,7 @@
                 alert('WebGL context lost. You will need to destroy and recreate this widget.');
                 e.preventDefault();
             }, false);
+
             return canvas;
         })();
         var instance;
@@ -76,23 +83,41 @@
             emulator:emulator,
             gameFile:gameFile,
             freezeFile:freezeFile,
+            freezeData:freezeData,
             extraFiles:otherFiles,
             preRun: [],
             postRun: [],
             print: function(m) { console.log(m); },
             printErr: function(e) { console.error(e); },
             canvas: canvas,
-            options: options || {}
+            options: options || {},
+            usesHeapSave: false,
+            emterpreted: false,
+            hasFileSystem: false,
+            requiresSDL2: false,
+            usesWebGLContext: false
         };
+        //Emulator specific code (might make prettier later)
+        if(emulator === DOSBOX){
+            moduleObject.usesHeapSave = true;
+            moduleObject.hasFileSystem = true;
+            moduleObject.requiresSDL2 = true;
+            moduleObject.emterpreted = true;
+        }else if(emulator === MUPEN64PLUS){
+            moduleObject.usesHeapSave = true;
+            moduleObject.usesWebGLContext = true;
+        }
+        
         instance = emuModule(moduleObject);
-        instance.postRun.push(function() {
+        instance.postRun.unshift(function csPostRun() {
+            console.log("Post Run 2");
             instance.setMuted("mute" in options ? options.mute : true);
             if(options && ("recorder" in options)) {
                 Recorder.recorderRoot = window.CiteState.scriptRoot+"recorder/";
                 if(!instance.getAudioCaptureInfo) {
                     throw "Can't record unless audio recording contexts are given by the emulator";
                 }
-                instance.startRecording = function(cb) {
+                instance.startRecording = function(cb, options) {
                     if(instance.recording) {
                         console.error("Can't record two videos at once for one emulator");
                         return;
@@ -102,7 +127,11 @@
                     var sampleRate = instance.audioInfo.context.sampleRate;
                     instance.audioSampleRate = sampleRate;
                     var bufferSize = 16384;
-                    instance.audioCaptureNode = instance.audioInfo.context.createScriptProcessor(bufferSize,2,2);
+                    //FCEUX uses a mono output
+                    // if(emulator === FCEUX)
+                    //     instance.audioCaptureNode = instance.audioInfo.context.createScriptProcessor(2048, 1, 1);
+                    // else
+                        instance.audioCaptureNode = instance.audioInfo.context.createScriptProcessor(bufferSize, 2, 2);
                     instance.audioCaptureBuffer = new Float32Array(sampleRate*2);
                     instance.audioCaptureStartSample = 0;
                     instance.audioCaptureOffset = 0;
@@ -110,9 +139,17 @@
                         var input = e.inputBuffer;
                         var output = e.outputBuffer;
                         var in0 = input.getChannelData(0);
-                        var in1 = input.getChannelData(1);
                         var out0 = output.getChannelData(0);
-                        var out1 = output.getChannelData(1);
+                        var in1, out1;
+                        // todo: change this to not have onaudioprocess care about emulator specifics
+                        // also does double assignment in loop below, so not too nice
+                        // if(emulator === FCEUX){
+                        //     in1 = in0;
+                        //     out1 = out0;
+                        // }else{
+                            in1 = input.getChannelData(1);
+                            out1 = output.getChannelData(1);
+                        //}
                         var capture = instance.audioCaptureBuffer;
                         var captureOffset = instance.audioCaptureOffset;
                         var sampleRate = instance.audioSampleRate;
@@ -142,8 +179,16 @@
                                 out1[i] = in1[i];
                             }
                         }
-                    }
-                    Recorder.startRecording(instance.canvas.width, instance.canvas.height, window.CiteState.canvasCaptureFPS, sampleRate, function(rid) {
+                    };
+                    //Recording options, used to lower throughput to video encoding if needed
+                    var width = instance.canvas.width;
+                    var height = instance.canvas.height;
+                    var fps = window.CiteState.canvasCaptureFPS;
+                    var br = 400000;
+                    if('fps' in options && options['fps']) fps = options['fps'];
+                    if('br' in options && options['br']) br = options['br'];
+                    
+                    Recorder.startRecording(width, height, fps, sampleRate, br, function(rid) {
                         console.log("Aud:",instance.audioInfo);
                         var audioCtx = instance.audioInfo.context;
                         var sampleRate = audioCtx.sampleRate;
@@ -154,9 +199,15 @@
                         instance.recordingID = rid;
                         instance.recordingStartFrame = window.CiteState.canvasCaptureCurrentFrame();
                         //hook up audio capture
-                        src.disconnect(dest);
+                        try
+                        {
+                            src.disconnect(dest);
+                        } catch (e){
+                            //pass since no need to disconnect
+                        }
                         src.connect(captureNode);
                         captureNode.connect(dest);
+
                         //hook up video capture
                         instance.captureContext = instance.canvas.getContext("2d");
                         window.CiteState.canvasCaptureOne(instance, 0);
@@ -168,13 +219,13 @@
                             cb(instance.recordingID);
                         }
                     });
-                }
+                };
                 instance.finishRecording = function(cb) {
                     Recorder.finishRecording(instance.recordingID, cb);
                     instance.recording = false;
                     instance.recordingID = -1;
                     window.CiteState.liveRecordings.splice(window.CiteState.liveRecordings.indexOf(instance),1);
-                }
+                };
                 instance.recording = false;
                 if(options.recorder.autoStart) {
                     instance.startRecording(null);
@@ -194,22 +245,28 @@
     window.CiteState.timeToFrame = function(timeInSeconds) {
         //seconds * (frames/second)
         return Math.floor(timeInSeconds * (window.CiteState.canvasCaptureFPS));
-    }
+    };
     window.CiteState.canvasCaptureCurrentFrame = function() {
         //seconds * (frames/second)
         return window.CiteState.timeToFrame(window.CiteState.canvasCaptureLastCapturedTime);
-    }
+    };
     window.CiteState.canvasCaptureOne = function(emu, frame) {
         if(frame <= emu.lastCapturedFrame) {
-            console.error("Redundant capture",frame);
+            console.error("Possible redundant capture ",frame);
         }
         emu.lastCapturedFrame = frame;
+        // Not needed if using dosbox.conf file, need to clean this up a bit for later, also check on SNES
+        // var imArray = shrinkImageData(
+        //     emu.captureContext.getImageData(0,0, emu.canvas.width, emu.canvas.height).data,
+        //     emu.canvas.width,
+        //     emu.canvas.height
+        // );
         Recorder.addVideoFrame(
             emu.recordingID,
             frame,
             emu.captureContext.getImageData(0, 0, emu.canvas.width, emu.canvas.height).data
         );
-    }
+    };
     window.CiteState.canvasCaptureTimerFn = function(timestamp) {
         //convert to seconds
         timestamp = timestamp / 1000.0;
@@ -231,10 +288,23 @@
             }
         }
         window.CiteState.canvasCaptureTimer = requestAnimationFrame(window.CiteState.canvasCaptureTimerFn);
-    }
+    };
+
+    window.CiteState.canvasCaptureScreen = function(emu){
+        var context, captureData;
+        if(emu.usesWebGLContext){
+            context = emu.canvas.getContext("webgl");
+            captureData = new Uint8Array(4 * context.drawingBufferWidth * context.drawingBufferHeight); //4 bytes per pixel * width * height
+            context.readPixels(0, 0, context.drawingBufferWidth, context.drawingBufferHeight, context.RGBA, context.UNSIGNED_BYTE, captureData);
+        }else{
+            context = emu.canvas.getContext("2d");
+            captureData = context.getImageData(0, 0, emu.canvas.width, emu.canvas.height).data;
+        }
+        return {width: emu.canvas.width, height: emu.canvas.height, data: captureData};
+    };
 
     //the loaded emulator instance will implement saveState(cb), saveExtraFiles(cb), and loadState(s,cb)
-    window.CiteState.cite = function (targetID, onLoad, gameFile, freezeFile, otherFiles, options) {
+    window.CiteState.cite = function (targetID, onLoad, gameFile, freezeFile, freezeData, otherFiles, options) {
         var system = determineSystem(gameFile);
         var emulator = EmulatorNames[system];
         if (!(emulator in LoadedEmulators)) {
@@ -244,13 +314,41 @@
             scriptElement.src = script;
             scriptElement.onload = function () {
                 LoadedEmulators[emulator] = window[emulator];
-                realCite(targetID, onLoad, system, emulator, gameFile, freezeFile, otherFiles, options);
+                realCite(targetID, onLoad, system, emulator, gameFile, freezeFile, freezeData, otherFiles, options);
             };
             document.body.appendChild(scriptElement);
         } else {
-            realCite(targetID, onLoad, system, emulator, gameFile, freezeFile, otherFiles, options);
+            realCite(targetID, onLoad, system, emulator, gameFile, freezeFile, freezeData, otherFiles, options);
         }
     }
 })();
+
+
+// Function to directly linearly shrink by 4x with a naive grab of each top left pixel value
+// This works because the DOS images are 640x400 scaled from 320x200, so each quad of pixels
+// has an identical value
+function shrinkImageData(pixelArray, w, h){
+    var retArray = new Uint8ClampedArray((w >> 1) * (h >> 1) * 4); // w / 2 and h / 2
+    var w4 = w << 2;
+    // Do this beforehand to avoid check if zero / initial in main loop
+    retArray[0] = pixelArray[0];
+    retArray[1] = pixelArray[1];
+    retArray[2] = pixelArray[2];
+    retArray[3] = pixelArray[3];
+
+    var retInd = 4;
+    for(var i = 8, len = pixelArray.length; i < len; i+=8){ //skip every other pixel
+        //investigate a way to remove this statement
+        if(i % w4 == 0){    //at the beginning of a new row, skip one
+            i += w4;
+        }
+        retArray[retInd] = pixelArray[i];
+        retArray[retInd + 1] = pixelArray[i + 1];
+        retArray[retInd + 2] = pixelArray[i + 2];
+        retArray[retInd + 3] = pixelArray[i + 3];
+        retInd += 4;
+    }
+    return retArray;
+}
 
 
