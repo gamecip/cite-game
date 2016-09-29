@@ -48,7 +48,13 @@
         //todo: compile everybody with -s modularize and export name to FCEUX, SNES9X, DOSBOX.
         //todo: and be sure that gameFile, freezeFile, freezeData and extraFiles are used appropriately.
         var targetElement = document.getElementById(targetID);
-        targetElement.innerHTML = "";
+				// Allow for multiple emulators to share a div and receive the same input
+				if(options && !('multiple' in options)){
+						targetElement.innerHTML = "";
+				}else if(options && 'multiple' in options){
+					if(!options.multiple)
+						targetElement.innerHTML = "";
+				}
         targetElement.tabIndex = 0;
         targetElement.addEventListener("click", function() {
             targetElement.focus();
