@@ -128,9 +128,9 @@
                     instance.audioSampleRate = sampleRate;
                     var bufferSize = 16384;
                     //FCEUX uses a mono output
-                    // if(emulator === FCEUX)
-                    //     instance.audioCaptureNode = instance.audioInfo.context.createScriptProcessor(2048, 1, 1);
-                    // else
+                    if(emulator === FCEUX)
+                        instance.audioCaptureNode = instance.audioInfo.context.createScriptProcessor(bufferSize, 1, 1);
+                    else
                         instance.audioCaptureNode = instance.audioInfo.context.createScriptProcessor(bufferSize, 2, 2);
                     instance.audioCaptureBuffer = new Float32Array(sampleRate*2);
                     instance.audioCaptureStartSample = 0;
