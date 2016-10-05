@@ -41,6 +41,7 @@
     }
 
     function realCite(targetID, onLoad, system, emulator, gameFile, freezeFile, freezeData, otherFiles, options) {
+        options = options || {};
         var emuModule = LoadedEmulators[emulator];
         if (!emuModule) {
             throw new Error("Emulator Not Loaded");
@@ -48,7 +49,13 @@
         //todo: compile everybody with -s modularize and export name to FCEUX, SNES9X, DOSBOX.
         //todo: and be sure that gameFile, freezeFile, freezeData and extraFiles are used appropriately.
         var targetElement = document.getElementById(targetID);
-        targetElement.innerHTML = "";
+				// Allow for multiple emulators to share a div and receive the same input
+				if(options && !('multiple' in options)){
+						targetElement.innerHTML = "";
+				}else if(options && 'multiple' in options){
+					if(!options.multiple)
+						targetElement.innerHTML = "";
+				}
         targetElement.tabIndex = 0;
         targetElement.addEventListener("click", function() {
             targetElement.focus();
@@ -111,7 +118,6 @@
         instance.postRun.unshift(function csPostRun() {
             console.log("Post Run 2");
             instance.setMuted("mute" in options ? options.mute : true);
-            if(onLoad) { onLoad(instance); }
             if(options && ("recorder" in options)) {
                 Recorder.recorderRoot = window.CiteState.scriptRoot+"recorder/";
                 if(!instance.getAudioCaptureInfo) {
@@ -231,6 +237,7 @@
                     instance.startRecording(null);
                 }
             }
+            if(onLoad) { onLoad(instance); }
         });
         EmulatorInstances[emulator].push(instance);
         return instance;
