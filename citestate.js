@@ -84,6 +84,7 @@
                 return window.CiteState.scriptRoot+"emulators/"+url;
             },
             targetID:targetID,
+            moduleID: window.CiteState.getNextModuleID(),
             keyboardListeningElement:targetElement,
             system:system,
             emulator:emulator,
@@ -101,7 +102,8 @@
             emterpreted: false,
             hasFileSystem: false,
             requiresSDL2: false,
-            usesWebGLContext: false
+            usesWebGLContext: false,
+            inputActive: true
         };
         //Emulator specific code (might make prettier later)
         if(emulator === DOSBOX){
@@ -113,10 +115,40 @@
             moduleObject.usesHeapSave = true;
             moduleObject.usesWebGLContext = true;
         }
-        
+        moduleObject.canvas.setAttribute("id", "moduleCanvas"+moduleObject.moduleID);
         instance = emuModule(moduleObject);
         instance.postRun.unshift(function csPostRun() {
             console.log("Post Run 2");
+            //Input Management
+            instance.turnOffInput = function(){
+                if(!instance.inputActive){
+                    console.error("Can't turn off inputs that are already off for module "+instance.moduleID);
+                    return;
+                }
+                var target = document.getElementById(instance.targetID);
+                var eventHandlers = [];
+                for(var i = 0; i < instance.JSEvents.eventHandlers.length; i++){
+                    if (instance.JSEvents.eventHandlers[i].target == target){
+                        eventHandlers.push(instance.JSEvents.eventHandlers[i])
+                    }
+                }
+                window.CiteState.instanceEventHandlers[instance.moduleID] = eventHandlers;
+                instance.JSEvents.removeAllHandlersOnTarget(target, null);
+                instance.inputActive = false;
+            };
+            instance.turnOnInput = function(){
+                if(instance.inputActive){
+                    console.error("Can't turn on inputs that are already on for module "+instance.moduleID);
+                    return;
+                }
+                var handlers = window.CiteState.instanceEventHandlers[instance.moduleID];
+                for(var i = 0; i < handlers.length; i++){
+                    instance.JSEvents.registerOrRemoveHandler(handlers[i])
+                }
+                window.CiteState.instanceEventHandlers[instance.moduleID] = undefined;
+                instance.inputActive = true;
+            };
+            //Audio and Video Recording
             instance.setMuted("mute" in options ? options.mute : true);
             if(options && ("recorder" in options)) {
                 Recorder.recorderRoot = window.CiteState.scriptRoot+"recorder/";
@@ -242,7 +274,10 @@
         EmulatorInstances[emulator].push(instance);
         return instance;
     }
-    
+
+    window.CiteState.activeModules = 0;
+    window.CiteState.getNextModuleID = function(){ return ++window.CiteState.activeModules; };
+    window.CiteState.instanceEventHandlers = [];
     window.CiteState.liveRecordings = [];
     window.CiteState.canvasCaptureTimerRunTime = 0;
     window.CiteState.canvasCaptureStartTime = 0;
