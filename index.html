@@ -53,6 +53,8 @@
 <a style="color:grey" onclick="emu.saveExtraFiles(['state'], manageSaveExtraFiles)">Save Extra Files (State)</a>
 <a style="color:grey" onclick="emu.saveExtraFiles(['battery'], manageSaveExtraFiles)">Save Extra Files (Battery)</a>
 <a style="color:green" onclick="finishRecording(emu)">Stop Recording</a>
+<a style="color:green" onclick="emu.turnOffInput()">Turn Off Input</a>
+<a style="color:green" onclick="emu.turnOnInput()">Turn On Input</a>
 <div id="target2" style="width:320px; height:240px"></div>
 <a style="color:blue" onclick="emu2.setMuted(!emu2.isMuted())">Toggle audio</a>
 <a style="color:red" onclick="emu2.saveState(manageSaveState)">Save State</a>
@@ -60,6 +62,8 @@
 <a style="color:grey" onclick="emu2.saveExtraFiles(['state'], manageSaveExtraFiles)">Save Extra Files (State)</a>
 <a style="color:grey" onclick="emu2.saveExtraFiles(['battery'], manageSaveExtraFiles)">Save Extra Files (Battery)</a>
 <a style="color:green" onclick="finishRecording(emu2)">Stop Recording</a>
+<a style="color:green" onclick="emu2.turnOffInput()">Turn Off Input</a>
+<a style="color:green" onclick="emu2.turnOnInput()">Turn On Input</a>
 <div id="target3" style="width:320px; height:240px"></div>
 <a style="color:blue" onclick="emu3.setMuted(!emu3.isMuted())">Toggle audio</a>
 <a style="color:red" onclick="emu3.saveState(manageSaveState)">Save State</a>
@@ -71,31 +75,31 @@
  CiteState.cite("target", function (emu) {
      window.emu = emu;
  }, "area88.smc", null, null, {mute:false, recorder:{autoStart:true}});
- /* CiteState.cite("target2", function (emu) {
-  *      window.emu2 = emu;
-  * }, "smb.nes"); //1943.nes
-  * */// CiteState.cite("target3", function (emu) {
-    //     window.emu3 = emu;
-    // }, "OREGON.EXE", null, {
-    //     "BIT8X8.GFT": "the-oregon-trail/BIT8X8.GFT",
-    //     "DIALOGS.REC": "the-oregon-trail/DIALOGS.REC",
-    //     "INSTALL.EXE": "the-oregon-trail/INSTALL.EXE",
-    //     "LOGO.004": "the-oregon-trail/LOGO.004",
-    //     "OREGON.EXE": "the-oregon-trail/OREGON.EXE",
-    //     "OTMCGA.PCL": "the-oregon-trail/OTMCGA.PCL",
-    //     "PRODUCT.PF": "the-oregon-trail/PRODUCT.PF",
-    //     "SONGS.TXT": "the-oregon-trail/SONGS.TXT",
-    //     "VGA256.BGI": "the-oregon-trail/VGA256.BGI",
-    //     "file_id.diz": "the-oregon-trail/file_id.diz",
-    //     "CGA.BGI": "the-oregon-trail/CGA.BGI",
-    //     "HISCORES.REC": "the-oregon-trail/HISCORES.REC",
-    //     "JOYCAL.REC": "the-oregon-trail/JOYCAL.REC",
-    //     "LOGO.256": "the-oregon-trail/LOGO.256",
-    //     "OTCGA.PCL": "the-oregon-trail/OTCGA.PCL",
-    //     "PAL.256": "the-oregon-trail/PAL.256",
-    //     "README": "the-oregon-trail/README",
-    //     "TOMB.REC": "the-oregon-trail/TOMB.REC",
-    //     "ZOP12.GAM": "the-oregon-trail/ZOP12.GAM"
-    // });
+ CiteState.cite("target2", function (emu) {
+       window.emu2 = emu;
+  }, "1943.nes"); //1943.nes
+// CiteState.cite("target3", function (emu) {
+//         window.emu3 = emu;
+//     }, "OREGON.EXE", null, {
+//         "BIT8X8.GFT": "the-oregon-trail/BIT8X8.GFT",
+//         "DIALOGS.REC": "the-oregon-trail/DIALOGS.REC",
+//         "INSTALL.EXE": "the-oregon-trail/INSTALL.EXE",
+//         "LOGO.004": "the-oregon-trail/LOGO.004",
+//         "OREGON.EXE": "the-oregon-trail/OREGON.EXE",
+//         "OTMCGA.PCL": "the-oregon-trail/OTMCGA.PCL",
+//         "PRODUCT.PF": "the-oregon-trail/PRODUCT.PF",
+//         "SONGS.TXT": "the-oregon-trail/SONGS.TXT",
+//         "VGA256.BGI": "the-oregon-trail/VGA256.BGI",
+//         "file_id.diz": "the-oregon-trail/file_id.diz",
+//         "CGA.BGI": "the-oregon-trail/CGA.BGI",
+//         "HISCORES.REC": "the-oregon-trail/HISCORES.REC",
+//         "JOYCAL.REC": "the-oregon-trail/JOYCAL.REC",
+//         "LOGO.256": "the-oregon-trail/LOGO.256",
+//         "OTCGA.PCL": "the-oregon-trail/OTCGA.PCL",
+//         "PAL.256": "the-oregon-trail/PAL.256",
+//         "README": "the-oregon-trail/README",
+//         "TOMB.REC": "the-oregon-trail/TOMB.REC",
+//         "ZOP12.GAM": "the-oregon-trail/ZOP12.GAM"
+//     });
 </script>
 </html>
