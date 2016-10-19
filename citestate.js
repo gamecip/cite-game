@@ -129,60 +129,64 @@
                         return;
                     }
                     instance.recording = true;
-                    instance.audioInfo = instance.getAudioCaptureInfo();
+                    if(!instance.audioInfo) {
+                        instance.audioInfo = instance.getAudioCaptureInfo();
+                    }
                     var sampleRate = instance.audioInfo.context.sampleRate;
-                    instance.audioSampleRate = sampleRate;
                     var bufferSize = 16384;
-                    //FCEUX uses a mono output
-                    if(emulator === FCEUX)
-                        instance.audioCaptureNode = instance.audioInfo.context.createScriptProcessor(bufferSize, 1, 1);
-                    else
-                        instance.audioCaptureNode = instance.audioInfo.context.createScriptProcessor(bufferSize, 2, 2);
+                    instance.lastCapturedFrame = 0;
                     instance.audioCaptureBuffer = new Float32Array(sampleRate*2);
                     instance.audioCaptureStartSample = 0;
                     instance.audioCaptureOffset = 0;
-                    instance.audioCaptureNode.onaudioprocess = function(e) {
-                        var input = e.inputBuffer;
-                        var output = e.outputBuffer;
-                        var in0 = input.getChannelData(0);
-                        var out0 = output.getChannelData(0);
-                        var in1, out1;
-                        // todo: change this to not have onaudioprocess care about emulator specifics
-                        // also does double assignment in loop below, so not too nice
-                        // if(emulator === FCEUX){
-                        //     in1 = in0;
-                        //     out1 = out0;
-                        // }else{
+                    if(!instance.audioCaptureNode) {
+                        //FCEUX uses a mono output
+                        if(emulator === FCEUX)
+                            instance.audioCaptureNode = instance.audioInfo.context.createScriptProcessor(bufferSize, 1, 1);
+                        else
+                            instance.audioCaptureNode = instance.audioInfo.context.createScriptProcessor(bufferSize, 2, 2);
+                        instance.audioCaptureNode.onaudioprocess = function(e) {
+                            var input = e.inputBuffer;
+                            var output = e.outputBuffer;
+                            var in0 = input.getChannelData(0);
+                            var out0 = output.getChannelData(0);
+                            var in1, out1;
+                            // todo: change this to not have onaudioprocess care about emulator specifics
+                            // also does double assignment in loop below, so not too nice
+                            // if(emulator === FCEUX){
+                            //     in1 = in0;
+                            //     out1 = out0;
+                            // }else{
                             in1 = input.getChannelData(1);
                             out1 = output.getChannelData(1);
-                        //}
-                        var capture = instance.audioCaptureBuffer;
-                        var captureOffset = instance.audioCaptureOffset;
-                        var sampleRate = instance.audioSampleRate;
-                        //todo: is this all right? the buffers seem to be getting too big when the worker thread finally gets them...
-                        if(instance.recording) {
-                            for(var i = 0; i < bufferSize; i++) {
-                                out0[i] = in0[i];
-                                out1[i] = in1[i];
-                                capture[captureOffset] = in0[i];
-                                capture[captureOffset+1] = in1[i];
-                                captureOffset+=2;
-                                if(captureOffset >= sampleRate*2) {
-                                    if(capture.length > sampleRate*2) {
-                                        console.error("Capture too long!");
+                            //}
+                            var capture = instance.audioCaptureBuffer;
+                            var captureOffset = instance.audioCaptureOffset;
+                            var sampleRate = instance.audioSampleRate;
+                            //todo: is this all right? the buffers seem to be getting too big when the worker thread finally gets them...
+                            if(instance.recording) {
+                                for(var i = 0; i < bufferSize; i++) {
+                                    out0[i] = in0[i];
+                                    out1[i] = in1[i];
+                                    capture[captureOffset] = in0[i];
+                                    capture[captureOffset+1] = in1[i];
+                                    captureOffset+=2;
+                                    if(captureOffset >= sampleRate*2) {
+                                        if(capture.length > sampleRate*2) {
+                                            console.error("Capture too long!");
+                                        }
+                                        Recorder.addAudioFrame(instance.recordingID, instance.audioCaptureStartSample, capture);
+                                        instance.audioCaptureStartSample += sampleRate;
+                                        capture = new Float32Array(sampleRate*2);
+                                        instance.audioCaptureBuffer = capture;
+                                        captureOffset = 0;
                                     }
-                                    Recorder.addAudioFrame(instance.recordingID, instance.audioCaptureStartSample, capture);
-                                    instance.audioCaptureStartSample += sampleRate;
-                                    capture = new Float32Array(sampleRate*2);
-                                    instance.audioCaptureBuffer = capture;
-                                    captureOffset = 0;
                                 }
-                            }
-                            instance.audioCaptureOffset = captureOffset;
-                        } else {
-                            for(var i = 0; i < bufferSize; i++) {
-                                out0[i] = in0[i];
-                                out1[i] = in1[i];
+                                instance.audioCaptureOffset = captureOffset;
+                            } else {
+                                for(var i = 0; i < bufferSize; i++) {
+                                    out0[i] = in0[i];
+                                    out1[i] = in1[i];
+                                }
                             }
                         }
                     };
@@ -201,19 +205,22 @@
                         var dest = audioCtx.destination;
                         var src = instance.audioInfo.capturedNode;
                         var captureNode = instance.audioCaptureNode;
-                        
+
                         instance.recordingID = rid;
                         instance.recordingStartFrame = window.CiteState.canvasCaptureCurrentFrame();
-                        //hook up audio capture
-                        try
-                        {
-                            src.disconnect(dest);
-                        } catch (e){
-                            //pass since no need to disconnect
-                        }
-                        src.connect(captureNode);
-                        captureNode.connect(dest);
 
+                        if(!instance.alreadyCapturesAudio) {
+                            //hook up audio capture
+                            try
+                            {
+                                src.disconnect(dest);
+                            } catch (e){
+                                //pass since no need to disconnect
+                            }
+                            src.connect(captureNode);
+                            captureNode.connect(dest);
+                            instance.alreadyCapturesAudio = true;
+                        }
                         //hook up video capture
                         instance.captureContext = instance.canvas.getContext("2d");
                         window.CiteState.canvasCaptureOne(instance, 0);
