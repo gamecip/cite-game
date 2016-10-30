@@ -178,7 +178,6 @@
                     instance.audioCaptureBuffer = new Float32Array(sampleRate*2);
                     instance.audioCaptureStartSample = 0;
                     instance.audioCaptureOffset = 0;
-<<<<<<< HEAD
                     if(!instance.audioCaptureNode) {
                         //FCEUX uses a mono output
                         if(emulator === FCEUX)
