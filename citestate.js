@@ -20,6 +20,7 @@
     EmulatorNames[N64] = MUPEN64PLUS;
 
     var LoadedEmulators = {};
+    var PendingEmulators = {};
 
     var EmulatorInstances = {};
     EmulatorInstances[FCEUX] = [];
@@ -84,7 +85,7 @@
                 return window.CiteState.scriptRoot+"emulators/"+url;
             },
             targetID:targetID,
-            moduleID: window.CiteState.getNextModuleID(),
+            instanceID: window.CiteState.getNextInstanceID(),
             keyboardListeningElement:targetElement,
             system:system,
             emulator:emulator,
@@ -115,14 +116,21 @@
             moduleObject.usesHeapSave = true;
             moduleObject.usesWebGLContext = true;
         }
-        moduleObject.canvas.setAttribute("id", "moduleCanvas"+moduleObject.moduleID);
+        //Width forcing code for multiple emulations
+        if(options.width && options.height){
+            moduleObject.enforcedHeight = options.height+"px";
+            moduleObject.enforcedWidth = options.width+"px";
+        }
+
+
+        moduleObject.canvas.setAttribute("id", "moduleCanvas"+moduleObject.instanceID);
         instance = emuModule(moduleObject);
         instance.postRun.unshift(function csPostRun() {
             console.log("Post Run 2");
             //Input Management
             instance.turnOffInput = function(){
                 if(!instance.inputActive){
-                    console.error("Can't turn off inputs that are already off for module "+instance.moduleID);
+                    console.error("Can't turn off inputs that are already off for instance "+instance.instanceID);
                     return;
                 }
                 var target = document.getElementById(instance.targetID);
@@ -132,20 +140,20 @@
                         eventHandlers.push(instance.JSEvents.eventHandlers[i])
                     }
                 }
-                window.CiteState.instanceEventHandlers[instance.moduleID] = eventHandlers;
+                window.CiteState.instanceEventHandlers[instance.instanceID] = eventHandlers;
                 instance.JSEvents.removeAllHandlersOnTarget(target, null);
                 instance.inputActive = false;
             };
             instance.turnOnInput = function(){
                 if(instance.inputActive){
-                    console.error("Can't turn on inputs that are already on for module "+instance.moduleID);
+                    console.error("Can't turn on inputs that are already on for instance "+instance.instanceID);
                     return;
                 }
-                var handlers = window.CiteState.instanceEventHandlers[instance.moduleID];
+                var handlers = window.CiteState.instanceEventHandlers[instance.instanceID];
                 for(var i = 0; i < handlers.length; i++){
                     instance.JSEvents.registerOrRemoveHandler(handlers[i])
                 }
-                window.CiteState.instanceEventHandlers[instance.moduleID] = undefined;
+                window.CiteState.instanceEventHandlers[instance.instanceID] = undefined;
                 instance.inputActive = true;
             };
             //Audio and Video Recording
@@ -181,13 +189,13 @@
                         var in1, out1;
                         // todo: change this to not have onaudioprocess care about emulator specifics
                         // also does double assignment in loop below, so not too nice
-                        // if(emulator === FCEUX){
-                        //     in1 = in0;
-                        //     out1 = out0;
-                        // }else{
+                         if(emulator === FCEUX){
+                             in1 = in0;
+                             out1 = out0;
+                         }else{
                             in1 = input.getChannelData(1);
                             out1 = output.getChannelData(1);
-                        //}
+                         }
                         var capture = instance.audioCaptureBuffer;
                         var captureOffset = instance.audioCaptureOffset;
                         var sampleRate = instance.audioSampleRate;
@@ -275,8 +283,9 @@
         return instance;
     }
 
-    window.CiteState.activeModules = 0;
-    window.CiteState.getNextModuleID = function(){ return ++window.CiteState.activeModules; };
+    window.CiteState.createdInstances = 0;
+    window.CiteState.pendingCites = [];
+    window.CiteState.getNextInstanceID = function(){ return ++window.CiteState.createdInstances; };
     window.CiteState.instanceEventHandlers = [];
     window.CiteState.liveRecordings = [];
     window.CiteState.canvasCaptureTimerRunTime = 0;
@@ -348,17 +357,34 @@
     window.CiteState.cite = function (targetID, onLoad, gameFile, freezeFile, freezeData, otherFiles, options) {
         var system = determineSystem(gameFile);
         var emulator = EmulatorNames[system];
-        if (!(emulator in LoadedEmulators)) {
+        if (!(emulator in LoadedEmulators) && !(emulator in PendingEmulators)) {
+            //Need to track pending to prevent multiple loads of any emulator script if initializing more than one
+            PendingEmulators[emulator] = null; //this could be any type of value, just need something there
             var script = window.CiteState.scriptRoot+"emulators/" + emulator + ".js";
             //load the script on the page
             var scriptElement = document.createElement("script");
             scriptElement.src = script;
             scriptElement.onload = function () {
+                delete PendingEmulators[emulator];
                 LoadedEmulators[emulator] = window[emulator];
+                //Run any queued cite calls
+                if(window.CiteState.pendingCites.length > 0){
+                    window.CiteState.pendingCites.forEach(function(args){
+                        realCite.apply(null, args);
+                    });
+                    window.CiteState.pendingCites = [];
+                }
+                //Run the most recent one
                 realCite(targetID, onLoad, system, emulator, gameFile, freezeFile, freezeData, otherFiles, options);
             };
             document.body.appendChild(scriptElement);
-        } else {
+        } else if(emulator in PendingEmulators){
+            //we process this list FIFO, hopefully won't matter
+            //also save system and emulator args from call
+            var newArgs = Array.prototype.slice.call(arguments);
+            newArgs.splice(2, 0, system, emulator);
+            window.CiteState.pendingCites.push(newArgs);
+        }else {
             realCite(targetID, onLoad, system, emulator, gameFile, freezeFile, freezeData, otherFiles, options);
         }
     }

@@ -28,6 +28,12 @@
             }
             return paths;
         }
+
+        function startRecording(emu){
+            emu.startRecording(function(){
+                console.log("Recording started.")
+            },{})
+        }
         
         function finishRecording(emu) {
             emu.finishRecording(function(movdata) {
@@ -52,6 +58,7 @@
 <a style="color:green" onclick="emu.loadState(savedState, manageLoadState)">Load State</a>
 <a style="color:grey" onclick="emu.saveExtraFiles(['state'], manageSaveExtraFiles)">Save Extra Files (State)</a>
 <a style="color:grey" onclick="emu.saveExtraFiles(['battery'], manageSaveExtraFiles)">Save Extra Files (Battery)</a>
+<a style="color:green" onclick="startRecording(emu)">Start Recording</a>
 <a style="color:green" onclick="finishRecording(emu)">Stop Recording</a>
 <a style="color:green" onclick="emu.turnOffInput()">Turn Off Input</a>
 <a style="color:green" onclick="emu.turnOnInput()">Turn On Input</a>
@@ -61,6 +68,7 @@
 <a style="color:green" onclick="emu2.loadState(savedState, manageLoadState)">Load State</a>
 <a style="color:grey" onclick="emu2.saveExtraFiles(['state'], manageSaveExtraFiles)">Save Extra Files (State)</a>
 <a style="color:grey" onclick="emu2.saveExtraFiles(['battery'], manageSaveExtraFiles)">Save Extra Files (Battery)</a>
+<a style="color:green" onclick="startRecording(emu2)">Start Recording</a>
 <a style="color:green" onclick="finishRecording(emu2)">Stop Recording</a>
 <a style="color:green" onclick="emu2.turnOffInput()">Turn Off Input</a>
 <a style="color:green" onclick="emu2.turnOnInput()">Turn On Input</a>
@@ -74,10 +82,10 @@
 <script>
  CiteState.cite("target", function (emu) {
      window.emu = emu;
- }, "area88.smc", null, null, {mute:false, recorder:{autoStart:true}});
+ }, "area88.smc", null, null, null, {mute:true, recorder:{}});
  CiteState.cite("target2", function (emu) {
        window.emu2 = emu;
-  }, "1943.nes"); //1943.nes
+			 }, "1943.nes", null, null, null, {mute:true, recorder:{}}); //1943.nes
 // CiteState.cite("target3", function (emu) {
 //         window.emu3 = emu;
 //     }, "OREGON.EXE", null, {
