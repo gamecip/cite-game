@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <script src="test-deps/base64-js/base64js.min.js" type="text/javascript" charset="utf-8"></script>
+
+        <script src="citestate.js" type="text/javascript" charset="utf-8"></script>
+        <script src="recorder/recorder-worker.js" type="text/javascript" charset="utf-8"></script>
+        <title>Cite Game State</title>
+        <script>
+         var savedState;
+         function saveByteArrays(blobs) {
+             var idx = new Uint32Array(1);
+             idx[0] = blobs.length;
+             var meta = new Uint32Array(blobs.length);
+             for (var b = 0; b < blobs.length; b++) {
+                 console.log(blobs[b]);
+                 meta[b] = blobs[b].byteLength;
+                 console.log("meta",b,meta[b]);
+             }
+             var blob = new Blob([idx,meta].concat(blobs), {});
+             var link = document.createElement('a');
+             link.href = window.URL.createObjectURL(blob);
+             var fileName = "save";
+             link.download = fileName;
+             link.click();
+             URL.revokeObjectURL(link.href);
+             link.remove();
+         };
+
+         function manageSaveState(stateData){
+             savedState = stateData;
+             if(!window.emu.usesHeapSave){
+                 saveByteArrays([stateData]);
+             }else{
+                 // TODO extra files?
+
+                 saveByteArrays([stateData.heap,
+                                 new Uint32Array([stateData.emtStack,
+                                                  stateData.stack,
+                                                  stateData.time])])
+             }
+         }
+
+         function manageLoadState(stateData){
+             savedState = stateData;
+         }
+
+         function manageSaveExtraFiles(fileMapping){
+             var fm = fileMapping;
+             console.log(fm);
+         }
+
+         function listFilePaths(emu){
+             var paths = [];
+             for (var fileName in emu.extraFiles){
+                 paths.push(fileName);
+             }
+             return paths;
+         }
+
+         function readState(data) {
+             var num = (new Uint32Array(data,0,1))[0];
+             if (num == 1) {
+                 return new Uint8Array(data, 4+4);
+             }
+             if (num != 2) {
+                 console.error("Invalid state");
+                 return null;
+             }
+             var lens = new Uint32Array(data, 4, num);
+             if (lens[1] != 4*3) {
+                 console.error("Invalid state");
+                 return null;
+             }
+             var start = 4 + 4 * num;
+             var heap = new Uint8Array(data, start, lens[0]);
+             start += lens[0];
+             var ptrs = new Uint32Array(data, start, lens[1]/4);
+             if (ptrs.length != 3) {
+                 console.error("Invalid state");
+                 return null;
+             }
+             return {heap:heap,
+                     emtStack:ptrs[0],
+                     stack:ptrs[1],
+                     time:ptrs[2]}
+         }
+
+         function reload() {
+             var req = new XMLHttpRequest();
+             req.responseType = 'arraybuffer';
+             req.addEventListener("load", function () {
+                 window.emu.loadState(readState(this.response), function(s) {
+                     console.log("DOSbox loaded state from freeze data");
+                 }, function(s) {
+                     console.error("DOSbox error loading state");
+                 });
+             });
+             req.open("GET", "doom-save");
+             req.send();
+         }
+        </script>
+    </head>
+    <body>
+        <div id="target" style="width:320px; height:240px"></div>
+        <a style="color:blue" onclick="emu.setMuted(!emu.isMuted())">Toggle audio</a>
+        <a style="color:red" onclick="emu.saveState(manageSaveState)">Save State</a>
+        <a style="color:grey" onclick="emu.saveExtraFiles(listFilePaths(emu3), manageSaveExtraFiles)">Save Extra Files</a>
+
+        <a style="color:green" onclick="loadState()">Load State</a>
+        <a style="color:green" onclick="reload()">Reload State</a>
+
+    </body>
+    <script>
+     var req = new XMLHttpRequest();
+     req.responseType = 'arraybuffer';
+     req.addEventListener("load", startup);
+     req.open("GET", "doom-save");
+     req.send();
+
+     function startup() {
+         var startState = readState(this.response);
+         CiteState.cite("target", function (emu) {
+             window.emu = emu;
+         }, "INSTALL.BAT", startState, startState, {
+             "DEICE.EXE": "doom/DEICE.EXE",
+             "DOOMS_19.1": "doom/DOOMS_19.1",
+             "DOOMS_19.2": "doom/DOOMS_19.2",
+             "DOOMS_19.DAT": "doom/DOOMS_19.DAT",
+             "INSTALL.BAT": "doom/INSTALL.BAT"
+         }, {mute:true, recorder:{}});
+     }
+    </script>
+</html>
