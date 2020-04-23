@@ -23,11 +23,11 @@
              zip.generateAsync({
                  type:"blob",
                  compression:"DEFLATE",
-                 compressionOptions: {level:6}
+                 compressionOptions: {level:3}
              }).then(function (blob) {
                  /*                     console.log("done"); */
                  saveAs(blob, "save.zip");
-                });
+             });
          }
          function saveState() {
              emu.saveState(function(stateData) {
@@ -35,16 +35,16 @@
                      emu.listExtraFiles(),
                      function(filemap) {
                          // TODO generalize to nes snes etc
-                         var fs = {"/meta.json":JSON.stringify({"emulator":"dosbox"}),
-                                   "/heap.heap":stateData.heap.slice(),
-                                   "/data.json":JSON.stringify({
+                         var fs = {"meta.json":JSON.stringify({"emulator":"dosbox"}),
+                                   "heap.heap":stateData.heap.slice(),
+                                   "data.json":JSON.stringify({
                                        "time":stateData.time,
                                        "stack":stateData.stack,
                                        "emtStack":stateData.emtStack
                                    })
                          };
                          for (var k in filemap) {
-                             fs["/files"+k] = filemap[k];
+                             fs["files"+k] = filemap[k];
                          }
                          saveFiles(fs);
                      }
@@ -68,46 +68,124 @@
              }
              return paths;
          }
-         /*
-          *          function readState(data) {
-          *              var num = (new Uint32Array(data,0,1))[0];
-          *              if (num == 1) {
-          *                  return new Uint8Array(data, 4+4);
-          *              }
-          *              if (num != 2) {
-          *                  console.error("Invalid state");
-          *                  return null;
-          *              }
-          *              var lens = new Uint32Array(data, 4, num);
-          *              if (lens[1] != 4*3) {
-          *                  console.error("Invalid state");
-          *                  return null;
-          *              }
-          *              var start = 4 + 4 * num;
-          *              var heap = new Uint8Array(data, start, lens[0]);
-          *              start += lens[0];
-          *              var ptrs = new Uint32Array(data, start, lens[1]/4);
-          *              if (ptrs.length != 3) {
-          *                  console.error("Invalid state");
-          *                  return null;
-          *              }
-          *              return {heap:heap,
-          *                      emtStack:ptrs[0],
-          *                      stack:ptrs[1],
-          *                      time:ptrs[2]}
-          *          } */
+         function insertFiles(filemap) {
+             var FS = window.emu.FS;
+             for(k in filemap) {
+                 if(filemap.hasOwnProperty(k)) {
+                     var targetPath = k;
+                     var lastSlash = k.lastIndexOf("/");
+                     var targetBase = (lastSlash == -1) ? "/" : k.slice(0,lastSlash+1);
+                     var targetName = k.slice(lastSlash+1);
+                     var components = targetBase.slice(0, targetBase.length-1).split("/");
+                     var sofar = "";
+                     while(components.length) {
+                         var here = components.shift();
+                         sofar += here;
+                         if(sofar != "" && sofar != "/") {
+                             if(!FS.analyzePath(sofar).exists) {
+                                 FS.mkdir(sofar);
+                             }
+                         }
+                         sofar += "/";
+                     }
+                     if(targetName != "") {
+                         FS.writeFile(k, filemap[k], {encoding:"binary"});
+                     }
+                 }
+             }
+         }
 
-         function reload() {
+         function readState(zipBytes, andThen) {
+             var zip = new JSZip();
+             return zip.loadAsync(zipBytes).then(function(zip) {
+                 var meta = zip.file("meta.json").async("text");
+                 var data = zip.file("data.json").async("text");
+                 var heap = zip.file("heap.heap").async("uint8array");
+                 var promises = [meta, data, heap];
+                 var filenames = [];
+                 var fold = zip.folder("files");
+                 fold.forEach(function(relPath, file) {
+                     filenames.push(relPath);
+                     promises.push(file.async("uint8array"));
+                 });
+                 Promise.all(promises).then(function(proms) {
+                     var meta = JSON.parse(proms[0]);
+                     var data = JSON.parse(proms[1]);
+                     var heap = proms[2];
+                     var files = {};
+                     proms = proms.slice(3);
+                     for (var i = 0; i < proms.length; i++) {
+                         files[filenames[i]] = proms[i];
+                     }
+                     andThen({
+                         state: {
+                             heap:heap,
+                             stack:data.stack,
+                             emtStack:data.emtStack,
+                             time:data.time
+                         },
+                         files: files
+                     })
+                 }, function(e) { console.error(e); });
+             }, function(e) { console.error(e); });
+         }
+
+         function reload(statePath) {
              var req = new XMLHttpRequest();
              req.responseType = 'arraybuffer';
              req.addEventListener("load", function () {
-                 window.emu.loadState(readState(this.response), function(s) {
-                     console.log("DOSbox loaded state from freeze data");
-                 }, function(s) {
-                     console.error("DOSbox error loading state");
+                 readState(this.response, function (state) {
+                     if(window.emu) {
+                         insertFiles(state.files);
+                         window.emu.loadState(state.state, function(s) {
+                             console.log("DOSbox loaded state from freeze data");
+                         }, function(s) {
+                             console.error("DOSbox error loading state");
+                         });
+                     } else {
+                         // TODO handle state.files properly by calling insertFiles
+                         CiteState.cite(
+                             "target", function (emu) {
+                                 window.emu = emu;
+                                 // TODO remove me once dosbox handles freeze data in constructor
+                                 reload(statePath);
+                             },
+                             // TODO should be in savestate
+                             "DOOM.EXE",
+                             null,
+                             // TODO fixme, dosbox ignores this
+                             state.data,
+                             // TODO this should either take a map to locations or a map to byte arrays/blobs
+                             // When I tried to load up files into a doom that had been started automatically from its installer, that didn't work --- doom crashed (inode differences or some low level filesystem stuff got inconsistent?).
+                             // So for a hack we'll just start from a fully installed doom:
+                             {
+                                 "DEFAULT.CFG": "DOOMS/DEFAULT.CFG",
+                                 "DM.DOC": "DOOMS/DM.DOC",
+                                 "DM.EXE": "DOOMS/DM.EXE",
+                                 "DMFAQ66A.TXT": "DOOMS/DMFAQ66A.TXT",
+                                 "DMFAQ66B.TXT": "DOOMS/DMFAQ66B.TXT",
+                                 "DMFAQ66C.TXT": "DOOMS/DMFAQ66C.TXT",
+                                 "DMFAQ66D.TXT": "DOOMS/DMFAQ66D.TXT",
+                                 "DOOM1.WAD": "DOOMS/DOOM1.WAD",
+                                 "DOOM.EXE": "DOOMS/DOOM.EXE",
+                                 "DWANGO.DOC": "DOOMS/DWANGO.DOC",
+                                 "DWANGO.EXE": "DOOMS/DWANGO.EXE",
+                                 "DWANGO.STR": "DOOMS/DWANGO.STR",
+                                 "HELPME.TXT": "DOOMS/HELPME.TXT",
+                                 "IPXSETUP.EXE": "DOOMS/IPXSETUP.EXE",
+                                 "MODEM.CFG": "DOOMS/MODEM.CFG",
+                                 "MODEM.NUM": "DOOMS/MODEM.NUM",
+                                 "MODEM.STR": "DOOMS/MODEM.STR",
+                                 "ORDER.FRM": "DOOMS/ORDER.FRM",
+                                 "README.TXT": "DOOMS/README.TXT",
+                                 "SERSETUP.EXE": "DOOMS/SERSETUP.EXE",
+                                 "SETUP.EXE": "DOOMS/SETUP.EXE"
+                             },
+                             {mute:true, recorder:{}});
+                     }
                  });
              });
-             req.open("GET", "doom-save");
+             req.open("GET", statePath);
              req.send();
          }
         </script>
@@ -116,23 +194,9 @@
         <div id="target" style="width:320px; height:240px"></div>
         <a style="color:blue" onclick="emu.setMuted(!emu.isMuted())">Toggle audio</a>
         <a style="color:red" onclick="saveState()">Save State</a>
-
-        <a style="color:green" onclick="startup()">Start Fresh</a>
-        <a style="color:green" onclick="reload(\"doom-save-1\")">Reload State 1</a>
-        <a style="color:green" onclick="reload(\"doom-save-2\")">Reload State 2</a>
+        <a style="color:green" onclick='reload("doom-save-1.zip")'>State 1</a>
+        <a style="color:green" onclick='reload("doom-save-2.zip")'>State 2</a>
+        <a style="color:green" onclick='reload("doom-save-3.zip")'>State 3</a>
 
     </body>
-    <script>
-     function startup() {
-         CiteState.cite("target", function (emu) {
-             window.emu = emu;
-         }, "INSTALL.BAT", null, null, {
-             "DEICE.EXE": "doom/DEICE.EXE",
-             "DOOMS_19.1": "doom/DOOMS_19.1",
-             "DOOMS_19.2": "doom/DOOMS_19.2",
-             "DOOMS_19.DAT": "doom/DOOMS_19.DAT",
-             "INSTALL.BAT": "doom/INSTALL.BAT"
-         }, {mute:true, recorder:{}});
-     }
-    </script>
 </html>

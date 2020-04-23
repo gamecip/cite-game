@@ -50,13 +50,13 @@
         //todo: compile everybody with -s modularize and export name to FCEUX, SNES9X, DOSBOX.
         //todo: and be sure that gameFile, freezeFile, freezeData and extraFiles are used appropriately.
         var targetElement = document.getElementById(targetID);
-				// Allow for multiple emulators to share a div and receive the same input
-				if(options && !('multiple' in options)){
-						targetElement.innerHTML = "";
-				}else if(options && 'multiple' in options){
-					if(!options.multiple)
-						targetElement.innerHTML = "";
-				}
+		// Allow for multiple emulators to share a div and receive the same input
+		if(options && !('multiple' in options)){
+			targetElement.innerHTML = "";
+		}else if(options && 'multiple' in options){
+			if(!options.multiple)
+				targetElement.innerHTML = "";
+		}
         targetElement.tabIndex = 0;
         targetElement.addEventListener("click", function() {
             targetElement.focus();
@@ -237,7 +237,7 @@
                     var br = 400000;
                     if('fps' in options && options['fps']) fps = options['fps'];
                     if('br' in options && options['br']) br = options['br'];
-                    
+
                     Recorder.startRecording(width, height, fps, sampleRate, br, function(rid) {
                         console.log("Aud:",instance.audioInfo);
                         var audioCtx = instance.audioInfo.context;
@@ -424,5 +424,3 @@ function shrinkImageData(pixelArray, w, h){
     }
     return retArray;
 }
-
-
